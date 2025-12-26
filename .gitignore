@@ -1,0 +1,6 @@
+__pycache__/
+venv/
+.env
+*.pdf
+temp_uploaded.pdf
+.streamlit/
