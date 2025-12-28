@@ -11,8 +11,8 @@ This project focuses on producing **clean, usable study material** instead of ve
 - Converts PDFs into concise, exam-focused notes
 - Generates MCQs from extracted content
 - Uses **separate processing pipelines** for:
-  - 📘 General (non-math) PDFs
-  - 📐 Math-heavy PDFs
+  -  General (non-math) PDFs
+  -  Math-heavy PDFs
 - Designed to work on **real, messy academic PDFs**
 
 ---
@@ -31,7 +31,7 @@ Math PDFs are one of the hardest inputs for LLMs because they contain:
 
 ---
 
-## ✨ Key Features
+##  Key Features
 
 - Clean, structured exam notes
 - Dedicated math summarization pipeline
@@ -43,7 +43,7 @@ Math PDFs are one of the hardest inputs for LLMs because they contain:
 
 ---
 
-## 🛠 Tech Stack
+##  Tech Stack
 
 - **Python**
 - **Streamlit**
@@ -53,7 +53,7 @@ Math PDFs are one of the hardest inputs for LLMs because they contain:
 
 ---
 
-## ▶️ How to Run Locally
+##  How to Run Locally
 
 ```bash
 # Step 1: Clone the repository
