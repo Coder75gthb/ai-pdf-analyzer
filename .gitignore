@@ -1,6 +1,9 @@
 __pycache__/
-venv/
+*.pyc
 .env
+venv/
+.venv/
+.streamlit/secrets.toml
 *.pdf
-temp_uploaded.pdf
-.streamlit/
+.DS_Store
+

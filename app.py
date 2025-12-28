@@ -20,6 +20,22 @@ from reportlab.lib.pagesizes import A4
 from reportlab.lib import colors
 from xml.sax.saxutils import escape
 
+if "mcq_clicked" not in st.session_state:
+    st.session_state.mcq_clicked = False
+
+
+
+# ---------------- FONT SIZE ----------------
+st.markdown(
+    """
+    <style>
+    textarea {
+        font-size: 18px !important;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True
+)
 
 # ---------------- SESSION STATE ----------------
 if "notes_text" not in st.session_state:
@@ -31,8 +47,7 @@ if "mcqs_text" not in st.session_state:
 if "notes_generated" not in st.session_state:
     st.session_state.notes_generated = False
 
-
-
+# ---------------- BACKGROUND (UNCHANGED) ----------------
 st.markdown("""
 <style>
 .stApp {
@@ -45,7 +60,6 @@ st.markdown("""
     background-size: 200% 200%;
     animation: slowBG 40s ease infinite;
 }
-
 @keyframes slowBG {
     0% { background-position: 0% 50%; }
     50% { background-position: 100% 50%; }
@@ -54,50 +68,25 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-
-
-
-
+# ---------------- LAYOUT CSS (UNCHANGED) ----------------
 st.markdown("""
 <style>
 .block-container {
     max-width: 1500px;
     padding-top: 2.5rem;
 }
-
-/* remove weird invisible gaps */
-div[data-testid="stFileUploader"] > section {
-    padding-top: 0 !important;
-    margin-top: 0 !important;
-}
-
-
-/* remove hr */
 hr { display: none; }
-
-/* hero */
 .hero-title {
     text-align: center;
     font-size: 3.2rem;
     font-weight: 700;
     margin-bottom: 0.3rem;
 }
-
 .hero-sub {
     text-align: center;
     opacity: 0.7;
     margin-bottom: 3rem;
 }
-
-/* Upload card */
-.upload-card {
-    background: #0e1117;
-    border: 1px solid #1f2937;
-    border-radius: 18px;
-    padding: 2.8rem;
-}
-
-/* Feature cards */
 .feature-card {
     background: #0e1117;
     border: 1px solid #1f2937;
@@ -105,23 +94,9 @@ hr { display: none; }
     padding: 1.8rem;
     margin-bottom: 1.8rem;
     margin-left: 80px;
-    transition: all 0.3s ease;
-}
-
-.feature-card:hover {
-    border-color: #3b82f6;
-    box-shadow: 0 0 24px rgba(59,130,246,0.28);
-    transform: translateY(-4px);
-}
-
-.feature-card h4 {
-    margin-bottom: 0.4rem;
 }
 </style>
 """, unsafe_allow_html=True)
-
-
-
 
 # ---------------- HERO ----------------
 st.markdown('<div class="hero-title">AI PDF Analyzer</div>', unsafe_allow_html=True)
@@ -131,263 +106,234 @@ st.markdown(
 )
 
 
+
+
+
+
 # ---------------- LANDING VIEW ----------------
 uploaded_pdf = None
 generate_clicked = False
 
 if not st.session_state.notes_generated:
-    label_visibility="collapsed"
-    # LEFT MUCH BIGGER, RIGHT PUSHED
     left, right = st.columns([4, 2], gap="large")
 
-    
-
     with left:
-        
-
         st.markdown("<h2>Upload PDF</h2>", unsafe_allow_html=True)
-
-        
-        uploaded_pdf = st.file_uploader(
-            "",
-            type=["pdf"],
-            label_visibility="collapsed"
-        )
-
-
-
-       
-        generate_clicked = st.button(
-            "Generate Notes",
-            use_container_width=True
-        )
-
-        st.markdown("</div>", unsafe_allow_html=True)
+        uploaded_pdf = st.file_uploader("", type=["pdf"], label_visibility="collapsed")
+        generate_clicked = st.button("Generate Notes", use_container_width=True)
 
     with right:
         st.markdown("""
         <div class="feature-card">
             <h4>Clean Exam Notes</h4>
-            <p style="opacity:0.75">
-            Structured, Revision friendly notes
-            </p>
+            <p style="opacity:0.75">Structured, Revision friendly notes</p>
         </div>
-
         <div class="feature-card">
             <h4>PDF Generation</h4>
-            <p style="opacity:0.75">
-            Downloadable, well-formatted PDFs
-            </p>
+            <p style="opacity:0.75">Downloadable, well-formatted PDFs</p>
         </div>
-
         <div class="feature-card">
             <h4>MCQ Generator</h4>
-            <p style="opacity:0.75">
-            Conceptual exam-level MCQs
-            </p>
+            <p style="opacity:0.75">Conceptual exam-level MCQs</p>
         </div>
         """, unsafe_allow_html=True)
 
-
 # ---------------- FILE HANDLING ----------------
+pdf_path = None
 if uploaded_pdf:
-    st.session_state.notes_generated = False
-    st.session_state.notes_text = ""
-    st.session_state.mcqs_text = None
-
     with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
-        tmp.write(uploaded_pdf.read())
+        tmp.write(uploaded_pdf.getvalue())
         pdf_path = tmp.name
 
-
-# ---------------- DEDUPE ----------------
 def dedupe_notes(text: str) -> str:
     seen = set()
     output = []
-
-    for line in text.split("\n"):
-        key = line.strip().lower()
-        if not key:
+    for line in text.splitlines():
+        key = re.sub(r"[^a-zA-Z0-9]", "", line).lower()
+        if key and key not in seen:
+            seen.add(key)
             output.append(line)
-            continue
-        if key in seen:
-            continue
-        seen.add(key)
-        output.append(line)
-
     return "\n".join(output)
 
 
-# ---------------- PDF GENERATION ----------------
-def generate_pdf_from_notes(text: str, output_path: str):
+def generate_pdf_bytes(notes_text: str):
+    from io import BytesIO
+    from reportlab.platypus import (
+        SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, KeepTogether
+    )
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib import colors
+    from xml.sax.saxutils import escape
+
+    buffer = BytesIO()
+    styles = getSampleStyleSheet()
+
+    # ---------- CUSTOM STYLES ----------
+    styles["Normal"].fontSize = 11
+    styles["Normal"].leading = 14
+
+    if "HeadingX" not in styles:
+        styles.add(ParagraphStyle(
+            name="HeadingX",
+            fontSize=16,
+            leading=20,
+            spaceBefore=14,
+            spaceAfter=8,
+            fontName="Helvetica-Bold",
+        ))
+
+    if "BulletX" not in styles:
+        styles.add(ParagraphStyle(
+            name="BulletX",
+            fontSize=11,
+            leading=14,
+            leftIndent=18,
+            spaceAfter=4,
+        ))
+
+    # ---------- DOC ----------
     doc = SimpleDocTemplate(
-        output_path,
+        buffer,
         pagesize=A4,
         rightMargin=36,
         leftMargin=36,
         topMargin=36,
-        bottomMargin=36
+        bottomMargin=36,
     )
 
-    styles = getSampleStyleSheet()
-    normal_style = styles["Normal"]
-
     elements = []
-    bullet_buffer = []
+
+    lines = notes_text.split("\n")
     table_buffer = []
-    usable_width = doc.width
-
-    def clean_text(s: str) -> str:
-        s = s.replace("**", "")
-        s = re.sub(r"^_+(.*?)_+$", r"\1", s)
-        s = s.lstrip("> ").strip()
-        return escape(s)
-
-    def flush_bullets():
-        nonlocal bullet_buffer
-        if bullet_buffer:
-            elements.append(
-                ListFlowable(
-                    [ListItem(Paragraph(clean_text(b), normal_style)) for b in bullet_buffer],
-                    bulletType="bullet",
-                    leftIndent=20
-                )
-            )
-            bullet_buffer = []
 
     def flush_table():
         nonlocal table_buffer
         if not table_buffer:
             return
 
-        filtered = []
-        for row in table_buffer:
-            cells = row.split("|")[1:-1]
-            if all(cell.strip().startswith("-") for cell in cells):
-                continue
-            if not any(cell.strip() for cell in cells):
-                continue
-            filtered.append([cell.strip() for cell in cells])
+        col_count = max(len(row) for row in table_buffer)
+        col_width = (A4[0] - 72) / col_count
 
-        if len(filtered) < 2:
-            table_buffer = []
-            return
+        table = Table(
+            table_buffer,
+            colWidths=[col_width] * col_count,
+            repeatRows=1
+        )
 
-        if filtered[0] and filtered[0][0] == "":
-            filtered = [row[1:] for row in filtered]
-
-        col_widths = [usable_width / len(filtered[0])] * len(filtered[0])
-        data = [[Paragraph(clean_text(c), normal_style) for c in row] for row in filtered]
-
-        table = Table(data, colWidths=col_widths, repeatRows=1)
         table.setStyle(TableStyle([
-            ("GRID", (0, 0), (-1, -1), 1, colors.black),
-            ("BACKGROUND", (0, 0), (-1, 0), colors.lightgrey),
-            ("FONT", (0, 0), (-1, 0), "Helvetica-Bold"),
+            ("GRID", (0, 0), (-1, -1), 0.6, colors.grey),
+            ("BACKGROUND", (0, 0), (-1, 0), colors.whitesmoke),
             ("VALIGN", (0, 0), (-1, -1), "TOP"),
+            ("LEFTPADDING", (0, 0), (-1, -1), 6),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+            ("TOPPADDING", (0, 0), (-1, -1), 6),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
         ]))
 
-        elements.append(table)
-        elements.append(Spacer(1, 14))
+        elements.append(Spacer(1, 10))
+        elements.append(KeepTogether(table))
+        elements.append(Spacer(1, 12))
         table_buffer = []
 
-    for line in text.split("\n"):
-        line = line.rstrip()
+    for raw in lines:
+        line = raw.strip()
 
-        if re.match(r"^\s*-{3,}\s*$", line):
+        # REMOVE Cooking Notes completely
+        if "Cooking Notes" in line:
             continue
-        if re.match(r"^\s*\|?\s*-+\s*\|.*", line):
+
+        # REMOVE ** markers
+        line = line.replace("**", "")
+
+        # TABLE ROW
+        if "|" in line and line.count("|") >= 2:
+            cells = [Paragraph(escape(c.strip()), styles["Normal"])
+                     for c in line.split("|") if c.strip()]
+            table_buffer.append(cells)
             continue
-
-        if line.startswith("•"):
-            flush_table()
-            bullet_buffer.append(line[1:].strip())
-
-        elif line.startswith("|") and "|" in line[1:]:
-            flush_bullets()
-            table_buffer.append(line)
-
-        elif not line.strip():
-            flush_bullets()
-            flush_table()
-            elements.append(Spacer(1, 10))
-
         else:
-            flush_bullets()
             flush_table()
-            elements.append(Paragraph(clean_text(line), normal_style))
 
-    flush_bullets()
+        # HEADING
+        if line and line == line.title() and len(line.split()) <= 6:
+            elements.append(Spacer(1, 10))
+            elements.append(Paragraph(escape(line), styles["HeadingX"]))
+            continue
+
+        # BULLET
+        if line.startswith("-") or line.startswith("•"):
+            elements.append(Paragraph(
+                escape(line.lstrip("-• ").strip()),
+                styles["BulletX"]
+            ))
+            continue
+
+        # NORMAL TEXT
+        if line:
+            elements.append(Paragraph(escape(line), styles["Normal"]))
+        else:
+            elements.append(Spacer(1, 8))
+
     flush_table()
+
     doc.build(elements)
+    buffer.seek(0)
+    return buffer
 
-
-# ---------------- SANITIZE ----------------
-def sanitize_text_for_pdf(text: str) -> str:
-    cleaned = []
-    for line in text.splitlines():
-        line = line.strip()
-        if not line:
-            cleaned.append("")
-            continue
-        if "cooking notes" in line.lower():
-            continue
-        if re.fullmatch(r"-{3,}", line):
-            continue
-        line = re.sub(r"^\*\s*", "• ", line)
-        line = line.replace("**", "").replace("_", "")
-        cleaned.append(line)
-    return "\n".join(cleaned)
 
 
 # ---------------- GENERATE NOTES ----------------
-if uploaded_pdf and generate_clicked:
-    if st.session_state.notes_generated:
-        st.warning("Notes already generated for this PDF.")
-    else:
-        collected_chunks = []
-        for chunk in process_pdf_stream(pdf_path):
-            st.markdown(chunk)
-            collected_chunks.append(chunk)
+if uploaded_pdf and generate_clicked and not st.session_state.notes_generated:
+    st.session_state.notes_text = ""
+    st.session_state.mcqs_text = None
 
-        st.session_state.notes_text = dedupe_notes("\n".join(collected_chunks))
-        st.session_state.notes_generated = True
-        st.success("Notes generated successfully")
+    container = st.empty()
+    collected = []
+
+    status = st.status("🍳 Cooking Notes...", expanded=True)
+
+    for chunk in process_pdf_stream(pdf_path):
+        collected.append(chunk)
+        container.markdown("".join(collected), unsafe_allow_html=True)
+
+    # final save
+    st.session_state.notes_text = dedupe_notes("".join(collected))
+    st.session_state.notes_generated = True
+
+    #  THIS LINE DOES THE JOB
+    status.update(label=" Notes generated successfully", state="complete")
 
 
-# ---------------- NOTES + PDF ----------------
-if st.session_state.notes_text:
-    st.markdown("## Generated Notes")
-    st.markdown(st.session_state.notes_text)
+# ---------------- DISPLAY ----------------
+# if st.session_state.notes_text:
+#     st.markdown("## Generated Notes")
+#     st.markdown(st.session_state.notes_text)
 
-    pdf_path = os.path.join(tempfile.gettempdir(), "AI_PDF_Analyzer_Notes.pdf")
-    generate_pdf_from_notes(
-        sanitize_text_for_pdf(st.session_state.notes_text),
-        pdf_path
-    )
-
-    with open(pdf_path, "rb") as f:
-        st.download_button(
-            "Download Notes as PDF",
-            f,
-            file_name="AI_PDF_Analyzer_Notes.pdf",
-            mime="application/pdf"
-        )
+    # ---- MCQ SECTION (STRICTLY GUARDED) ----
+if st.session_state.get("notes_generated", False):
 
     st.markdown("## MCQ Generator")
 
-    if st.button("Generate MCQs"):
-        with st.spinner("Generating MCQs"):
-            try:
-                st.session_state.mcqs_text = generate_mcqs(
-                    st.session_state.notes_text[:4000],
-                    num_questions=20
-                )
-            except Exception:
-                st.session_state.mcqs_text = "MCQ generation failed."
+    if st.button("Generate MCQs", key="mcq_btn"):
+        with st.spinner("Generating MCQs..."):
+            st.session_state.mcqs_text = generate_mcqs(
+                st.session_state.notes_text[:4000],
+                20
+            )
 
-
-# ---------------- MCQ OUTPUT ----------------
-if st.session_state.mcqs_text:
+if st.session_state.get("mcqs_text"):
     st.markdown("### MCQs")
     st.text(st.session_state.mcqs_text)
+
+# ---------------- PDF DOWNLOAD ----------------
+if st.session_state.notes_generated and st.session_state.notes_text:
+    pdf_bytes = generate_pdf_bytes(st.session_state.notes_text)
+
+    st.download_button(
+        label="Download Notes as PDF",
+        data=pdf_bytes,
+        file_name="Exam_Notes.pdf",
+        mime="application/pdf",
+        use_container_width=True
+    )
