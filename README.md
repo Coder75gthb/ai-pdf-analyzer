@@ -5,6 +5,7 @@ An AI-powered Streamlit application that converts PDFs into **exam-ready notes a
 This project focuses on producing **clean, usable study material** instead of verbose or hallucinated summaries.
 
 ---
+🔗 **Live Demo:** [Click here](https://ai-pdf-analyzer-2wtm9fhtydnrtwyjicuvvh.streamlit.app/)
 
 ## What This Project Does
 
